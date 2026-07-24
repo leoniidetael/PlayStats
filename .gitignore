@@ -1,3 +1,7 @@
 .env
 __pycache__/
 *.pyc
+CLAUDE.md
+project-documents/
+.vscode/
+cache/
