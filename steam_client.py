@@ -1,6 +1,11 @@
 """
 A wrapper created around the Steam Web API endpoints PlayStats requires. For now only the Numeric SteamID64, the vanity URL
 is being saved for later implementation.
+
+AI usage: Claude (Anthropic) was used to identify a bug in get_owned_games, specifically a private/empty-profile bug where they were receiving
+the same error code even though they are not the same errors. Claude was also used to debug Github repository ruleset/branch protection issues
+I ran into. All code was written and commited by me (Leoniide Tael) and Claude was used for targeted debugging and to review code. Any code
+suggestions were integrated by hand and adapted accordingly.
 """
 
 # Imports
