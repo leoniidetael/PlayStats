@@ -21,6 +21,9 @@ API_KEY = os.getenv("STEAM_API_KEY")
 # Base domain that will be built upon with f-strings
 BASE_URL = "https://api.steampowered.com"
 
+# Steam Store API has a different domain than the web API, so it needs it's own base constant
+STORE_BASE_URL = "https://store.steampowered.com"
+
 # Custom exceptions so the Streamlit layer can catch each case and display a user friendly message
 # instead of a raw error message
 class SteamAPIError(Exception):
@@ -215,3 +218,25 @@ def get_player_summary(steam_id: str) -> dict:
         raise PrivateProfileError(f"Profile for SteamID {steam_id} is not public.")
 
     return data
+
+def get_app_details(appid: int) -> dict | None:
+    """
+    Returns Steam Store metadata for an appid or None if Steam has no data for it. Returns none instead of raising
+    lets callers so individual games can be skipped without all of them failing. It's also cached per appid
+    instead of per steamid since app details are the same for every user that owns the game(s)
+    """
+
+    url = f"{STORE_BASE_URL}/api/appdetails"
+
+    # No API key or format param needed since it's Steam's public store API
+    params = {"appids": appid}
+
+    data = _get(url, params, cache_key=f"app_details_{appid}")
+
+    # Store API responds keyed by the appid as string, each has it's own success flag
+    entry = data.get(str(appid))
+
+    if not entry or not entry.get("success"):
+        return None
+
+    return entry.get("data", {})
