@@ -1,4 +1,5 @@
 import os
+import json
 import anthropic
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -110,3 +111,40 @@ def route_intent(question: str) -> dict:
         "intent": intent,
         "responseType": INTENT_RESPONSE_TYPES.get(intent),
     }
+
+def summarize_result(intent: str, data: dict | list) -> str | None:
+    """
+    Asks Claude to phrase a short, natural language summary of the already computer analytics data.
+    Claude only restates the given numbers and never computer or is given the chance to invent any. Returns None on failure so
+    the caller can still see the chart without a summary
+    """
+    system_prompt = (
+        f"You are a PlayStats' analytics narrator. You're given the intent '{intent}' and the exact JSON data that was already " \
+        "computed and charted for the user. Write a 3-5 sentence summary that explains what the chart shows, as if you are walking " \
+        "the user through it.\n\n"
+        "Rules:\n" \
+        "Use ONLY the numbers and names present in the JSON. Do not calculate, estimate or invent a number that isn't in the data already. " \
+        "When the data is a sorted list, the first entry is the most relevant one. (e.g. most hours played, or best value per hour) " \
+        "unless the field names say otherwise.\n"
+        "Call out the standout: the top entry, the biggest gap or the most notable comparison in the data.\n"
+        "Write it like you're describing the chart to someone who hasn't seen it yet. in plain language not a restatement of the JSON structure " \
+        "or field names.\n"
+        "Do not give advice, recommendations or opinions."
+    )
+
+    try:
+        response = client.messages.create(
+        model=MODEL,
+        max_tokens=300,
+        system=system_prompt,
+        messages=[{"role": "user", "content": json.dumps(data)}],
+        )
+    except (anthropic.RateLimitError, anthropic.APIConnectionError, anthropic.APIStatusError):
+        return None
+
+    if response.stop_reason == "refusal":
+        return None
+
+    text = "".join(block.text for block in response.content if block.type == "text").strip()
+    return text or None
+        

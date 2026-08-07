@@ -1,6 +1,6 @@
 """
-A wrapper created around the Steam Web API endpoints PlayStats requires. For now only the Numeric SteamID64, the vanity URL
-is being saved for later implementation.
+A wrapper created around the Steam Web API endpoints PlayStats requires. Accepts a numeric SteamID64, a vanity name,
+or a full steamcommunity.com profile URL via resolve_steam_id.
 
 AI usage: Claude (Anthropic) was used to identify a bug in get_owned_games, specifically a private/empty-profile bug where they were receiving
 the same error code even though they are not the same errors. Claude was also used to debug Github repository ruleset/branch protection issues
@@ -81,6 +81,37 @@ def _validate_steam_id(steam_id: str) -> None:
     if not str(steam_id).isdigit() or len(str(steam_id)) != 17:
         raise InvalidSteamIDError(f"'{steam_id}' is not a valid SteamID64, expected entry is 17 digits with no other characters.")
 
+def _extract_id_or_vanity(user_input: str) -> str:
+    """
+    Strips a full steamcommunity.com profile URL to just to id/vanity segment so users can paste a whole profile link instead of the
+    id/vanity name
+    """
+    text = user_input.strip().rstrip("/")
+    for marker in ("/profiles/", "/id/"):
+        if marker in text:
+            return text.split(marker, 1)[1].split("/")[0]
+    return text
+
+def resolve_steam_id(user_input: str) -> str:
+    """
+    Accepts a numeric SteamID54, vanity name or a full steamcommunity.com profile URL and returns a numeric SteamID64. Vanity names are resolved via
+    ResolveVanityURL endpoint, numeric IDs pass through the API call
+    """
+    candidate = _extract_id_or_vanity(user_input)
+
+    if candidate.isdigit() and len(candidate) == 17:
+        return candidate
+
+    url = f"{BASE_URL}/ISteamUser/ResolveVanityURL/v0001/"
+    params = {"key": API_KEY, "vanityurl": candidate, "format": "json"}
+    data = _get(url, params, cache_key=f"vanity_{candidate}")
+
+    response = data.get("response", {})
+    if response.get("success") != 1:
+        raise InvalidSteamIDError(f"Could not find a Steam profile for '{user_input}'.")
+
+    return response["steamid"]
+    
 def _get(url: str, params: dict, cache_key: str | None = None) -> dict:
     """
     Shared requests/response handling. This catches network failures and checks the local JSON cache when a cache_key
@@ -240,3 +271,14 @@ def get_app_details(appid: int) -> dict | None:
         return None
 
     return entry.get("data", {})
+
+def get_player_badges(steam_id: str) -> dict:
+    """
+    Returns the user's Steam Community badges and Steam level through IPlayerService/GetBadges/v1/
+    """
+    _validate_steam_id(steam_id)
+
+    url = f"{BASE_URL}/IPlayerService/GetBadges/v1/"
+    params = {"key": API_KEY, "steamid": steam_id, "format": "json"}
+
+    return _get(url, params, cache_key=f"badges_{steam_id}")
