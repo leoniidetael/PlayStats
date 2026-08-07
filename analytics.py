@@ -1,6 +1,7 @@
 from steam_client import (
     get_app_details,
     get_owned_games,
+    get_player_badges,
     get_player_summary,
     get_recently_played_games,
     get_top_games_by_playtime,
@@ -74,11 +75,15 @@ def profile_summary(steam_id: str) -> dict:
 
     total_hours = round(sum(g.get("playtime_forever", 0) for g in games) / 60, 1)
 
+    badges = get_player_badges(steam_id).get("response", {})
+
     return {
         "persona_name": player.get("personaname", "Unknown"),
         "avatar": player.get("avatarfull", ""),
         "game_count": len(games),
         "total_hours": total_hours,
+        "steam_level": badges.get("player_level", 0),
+        "badge_count": len(badges.get("badges", [])),
     }
 
 def genre_breakdown(steam_id: str, limit: int = 20) -> dict:
